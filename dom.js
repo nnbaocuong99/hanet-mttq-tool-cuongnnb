@@ -58,11 +58,36 @@
   function readEarlyDialog(doc) {
     const dialog = earlyDialog(doc);
     if (!dialog) return null;
-    const items = Array.from(dialog.querySelectorAll('[role="button"]')).map(node => {
+    const items = Array.from(dialog.querySelectorAll('[role="button"], button')).map(node => {
       const paragraphs = Array.from(node.querySelectorAll('p'));
       return {node, time: text(paragraphs[0]), name: text(paragraphs[paragraphs.length - 1])};
     }).filter(row => row.name && Core.timeSeconds(row.time) !== null);
-    return {dialog, items};
+    if (!items.length) return {dialog, items, sortContainer: null};
+
+    // HANET currently wraps every FaceID row in a separate <div>. Older builds
+    // placed all role=button rows directly under one parent. Find the deepest
+    // common container whose direct children map one-to-one to FaceID rows so
+    // both structures can be sorted without moving React-owned DOM nodes.
+    const directChildOf = (container, node) => {
+      let current = node;
+      while (current && current.parentElement !== container) current = current.parentElement;
+      return current?.parentElement === container ? current : null;
+    };
+    let sortContainer = items[0].node.parentElement;
+    let sortNodes = null;
+    while (sortContainer && sortContainer !== dialog) {
+      if (items.every(item => sortContainer.contains(item.node))) {
+        const mapped = items.map(item => directChildOf(sortContainer, item.node));
+        if (mapped.every(Boolean) && new Set(mapped).size === items.length) {
+          sortNodes = mapped;
+          break;
+        }
+      }
+      sortContainer = sortContainer.parentElement;
+    }
+    if (!sortNodes) sortContainer = null;
+    items.forEach((item, index) => {item.sortNode = sortNodes?.[index] || null;});
+    return {dialog, items, sortContainer};
   }
   function dashboardKey(doc) {
     const card = earlyCard(doc);

@@ -29,7 +29,7 @@ if(location.pathname.endsWith('/person/checkin')){
   const arrivals=Array.from({length:168},(_,i)=>{let t=i===167?28782:21600+i*43;return {name:`Người thử nghiệm ${String(i+1).padStart(3,'0')}`,time:[Math.floor(t/3600),Math.floor(t/60)%60,t%60].map(v=>String(v).padStart(2,'0')).join(':')};});
   fixtureMain.innerHTML='<button id="day">08/09/2026</button><div class="card" role="button" tabindex="0"><div><p>FaceID đi sớm</p><p>168</p></div><div class="native-early"></div><p>Xem thêm</p></div>';
   const card=fixtureMain.querySelector('.card');
-  function draw(parent,rows,role){rows.forEach(r=>{const item=document.createElement('div');if(role)item.setAttribute('role','button');const time=document.createElement('p');time.textContent=r.time;const name=document.createElement('p');name.textContent=r.name;item.append(time,name);parent.append(item);});}
+  function draw(parent,rows,role){rows.forEach(r=>{const item=document.createElement('div');if(role)item.setAttribute('role','button');const time=document.createElement('p');time.textContent=r.time;const name=document.createElement('p');name.textContent=r.name;item.append(time,name);if(role){const wrapper=document.createElement('div');wrapper.append(item);parent.append(wrapper);}else parent.append(item);});}
   draw(card.querySelector('.native-early'),arrivals.slice(0,5),false);
   card.onclick=()=>{
     if(document.querySelector('[role=dialog]'))return;

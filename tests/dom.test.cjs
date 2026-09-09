@@ -58,17 +58,41 @@ test('sắp xếp toàn bộ 168 người, đổi chiều, thẻ tóm tắt và 
     assert.equal(summary.querySelector('time').textContent,'07:59:42');
     assert.equal(card.querySelector('.native-early').style.display,'none');
     card.click();await until(()=>doc.querySelector('.all-arrivals').style.display==='flex');
-    const rows=Array.from(doc.querySelectorAll('.all-arrivals>[role=button]'));
+    let rows=Array.from(doc.querySelectorAll('.all-arrivals [role=button]'));
     assert.equal(rows.length,168);
-    const first=rows.slice().sort((a,b)=>Number(a.style.order)-Number(b.style.order))[0];
+    assert.equal(new Set(rows.map(row=>row.parentElement)).size,168);
+    let first=rows.slice().sort((a,b)=>Number(a.parentElement.style.order)-Number(b.parentElement.style.order))[0];
     assert.equal(first.querySelector('p').textContent,'07:59:42');
+
+    // React may replace the list with new nodes while keeping the same data.
+    // The extension must reapply order even when the time/name signature did not change.
+    const oldList=doc.querySelector('.all-arrivals'),replacement=oldList.cloneNode(true);
+    replacement.removeAttribute('style');replacement.querySelectorAll('[style]').forEach(node=>node.removeAttribute('style'));
+    oldList.replaceWith(replacement);
+    await until(()=>Array.from(replacement.querySelectorAll('[role=button]')).every(row=>row.parentElement.style.order!==''));
+    rows=Array.from(replacement.querySelectorAll('[role=button]'));
+    first=rows.slice().sort((a,b)=>Number(a.parentElement.style.order)-Number(b.parentElement.style.order))[0];
+    assert.equal(first.querySelector('p').textContent,'07:59:42');
+
     const select=Array.from(doc.querySelector('.sheet').children).find(el=>el.shadowRoot).shadowRoot.querySelector('select');
     select.value='asc';select.dispatchEvent(new w.Event('change',{bubbles:true}));await delay(250);
-    assert.equal(rows[0].style.order,'0');
+    assert.equal(rows[0].parentElement.style.order,'0');
     summary=Array.from(card.children).find(el=>el.shadowRoot)?.shadowRoot;
     assert.equal(summary.querySelector('time').textContent,'06:00:00');
     doc.querySelector('.sheet>button').click();doc.querySelector('#day').click();await delay(400);
     assert.equal(card.querySelector('.native-early').style.display,'');
     assert.match(ui.querySelector('#status').textContent,/thay đổi/);
   }finally{dom.window.close();}
+});
+
+test('nhận diện được cả dòng bọc riêng và dòng trực tiếp trong một danh sách',()=>{
+  const Core=require('../core.js'),DOM=require('../dom.js');
+  for(const wrapped of [false,true]){
+    const row=(time,name)=>wrapped?`<div><div role="button"><p>${time}</p><p>${name}</p></div></div>`:`<div role="button"><p>${time}</p><p>${name}</p></div>`;
+    const sample=new JSDOM(`<div role="dialog"><h2>FaceID đi sớm</h2><section>${row('07:58:01','Người A')}${row('07:59:02','Người B')}</section><button>Close</button></div>`);
+    const details=DOM.readEarlyDialog(sample.window.document);
+    assert.equal(details.items.length,2);assert.equal(details.sortContainer.tagName,'SECTION');
+    assert.equal(new Set(details.items.map(item=>item.sortNode)).size,2);
+    assert.deepEqual(Core.sortArrivals(details.items).map(item=>item.name),['Người B','Người A']);
+  }
 });

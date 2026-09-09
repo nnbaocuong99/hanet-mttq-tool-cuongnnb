@@ -5,7 +5,7 @@
   const PLACE = '997606', PREFIX = `/${PLACE}/`;
   const state = {route: '', host: null, ui: null, data: null, early: null, busy: false, cancel: false, direction: 'desc', cardView: null, dialogView: null};
   const styleMemo = new Map();
-  let scheduled = false, lastEarlySignature = '';
+  let scheduled = false, lastEarlySignature = '', lastEarlyUnits = [];
   const styles = `
     :host{display:block;flex:none;width:100%;font-family:Arial,Helvetica,sans-serif;color:#18324f;box-sizing:border-box;color-scheme:light}
     *{box-sizing:border-box} [hidden]{display:none!important} .panel{margin:0 0 16px;padding:18px 20px;border:1px solid #afc9e6;border-left:4px solid #2366ad;border-radius:10px;background:#f4f8fd}
@@ -41,6 +41,9 @@
       if (old.value) node.style.setProperty(property, old.value, old.priority); else node.style.removeProperty(property);
     }));
     styleMemo.clear();
+  }
+  function forgetDisconnectedStyles() {
+    for (const node of styleMemo.keys()) if (!node.isConnected) styleMemo.delete(node);
   }
   function removeCardView() {
     state.cardView?.remove(); state.cardView = null;
@@ -78,7 +81,7 @@
       state.cancel = true;
       state.host?.remove(); state.dialogView?.remove(); removeCardView(); restoreStyles();
       state.host = null; state.ui = null; state.data = null; state.early = null; state.dialogView = null;
-      state.route = route; lastEarlySignature = '';
+      state.route = route; lastEarlySignature = ''; lastEarlyUnits = [];
     }
     if (!route || state.host || state.busy) return;
     const source = route === 'report' ? DOM.findTable(document) : DOM.earlyCard(document);
@@ -86,7 +89,7 @@
     if (!main) return;
     const host = document.createElement('div'); host.id = 'hanet-mttq-helper';
     const shadow = host.attachShadow({mode:'open'});
-    shadow.innerHTML = `<style>${styles}</style><section class="panel" aria-label="Tiện ích điểm danh MTTQ"><div class="head"><h2>${route === 'report' ? 'Xuất điểm danh theo ban' : 'Sắp xếp FaceID đi sớm'}</h2><span class="tag">MTTQ · v0.1</span></div><p>${route === 'report' ? 'Chọn khoảng thời gian trong HANET, sau đó đọc danh sách và chọn phòng ban cần xuất.' : 'Giờ đến mới nhất đứng trước trong nhóm đi sớm của ngày đang xem.'}</p><div class="actions"><button class="primary" id="read">${route === 'report' ? '1. Đọc đủ các trang' : 'Cập nhật đi sớm'}</button>${route === 'report' ? '<label>2. Phòng ban<select id="department" disabled><option>Chọn phòng ban sau khi đọc dữ liệu</option></select></label><button id="export" disabled>3. Xuất Excel</button>' : '<label>Thứ tự giờ đến<select id="direction"><option value="desc">Mới nhất trước</option><option value="asc">Sớm nhất trước</option></select></label>'}<button id="cancel" hidden>Hủy</button></div><p id="status" class="status" role="status" aria-live="polite"></p><div id="preview" class="preview"></div><p id="foot" class="foot"></p></section>`;
+    shadow.innerHTML = `<style>${styles}</style><section class="panel" aria-label="Tiện ích điểm danh MTTQ"><div class="head"><h2>${route === 'report' ? 'Xuất điểm danh theo ban' : 'Sắp xếp FaceID đi sớm'}</h2><span class="tag">MTTQ · v0.2</span></div><p>${route === 'report' ? 'Chọn khoảng thời gian trong HANET, sau đó đọc danh sách và chọn phòng ban cần xuất.' : 'Giờ đến mới nhất đứng trước trong nhóm đi sớm của ngày đang xem.'}</p><div class="actions"><button class="primary" id="read">${route === 'report' ? '1. Đọc đủ các trang' : 'Cập nhật đi sớm'}</button>${route === 'report' ? '<label>2. Phòng ban<select id="department" disabled><option>Chọn phòng ban sau khi đọc dữ liệu</option></select></label><button id="export" disabled>3. Xuất Excel</button>' : '<label>Thứ tự giờ đến<select id="direction"><option value="desc">Mới nhất trước</option><option value="asc">Sớm nhất trước</option></select></label>'}<button id="cancel" hidden>Hủy</button></div><p id="status" class="status" role="status" aria-live="polite"></p><div id="preview" class="preview"></div><p id="foot" class="foot"></p></section>`;
     state.host = host;
     state.ui = Object.fromEntries(['read','department','export','direction','cancel','status','preview','foot'].map(id => [id,shadow.getElementById(id)]));
     main.prepend(host);
@@ -227,7 +230,7 @@
     if (state.ui?.direction) state.ui.direction.value = state.direction;
     const dialogSelect = state.dialogView?.shadowRoot?.querySelector('select');
     if (dialogSelect) dialogSelect.value = state.direction;
-    lastEarlySignature = '';
+    lastEarlySignature = ''; lastEarlyUnits = [];
     updateEarly();
     if (state.early) drawEarlyCard();
   }
@@ -259,20 +262,28 @@
     if (state.route !== 'dashboard') return;
     const key = DOM.dashboardKey(document);
     if (state.early && (state.early.date !== key.date || state.early.count !== key.count)) {
-      state.early = null; lastEarlySignature = ''; removeCardView();
+      state.early = null; lastEarlySignature = ''; lastEarlyUnits = []; removeCardView();
       status('Ngày hoặc số người đã thay đổi. Bấm “Cập nhật đi sớm” để đọc danh sách mới.');
     }
     const details = DOM.readEarlyDialog(document);
-    if (!details || !details.items.length) return;
-    if (key.count === null || details.items.length !== key.count) return;
-    const parents = new Set(details.items.map(item => item.node.parentElement));
-    if (parents.size !== 1) {status('Cấu trúc danh sách HANET đã thay đổi; chưa thể sắp xếp tự động.', 'error'); return;}
+    forgetDisconnectedStyles();
+    if (!details || !details.items.length) {
+      if (state.dialogView && !state.dialogView.isConnected) state.dialogView = null;
+      lastEarlySignature = ''; lastEarlyUnits = [];
+      return false;
+    }
+    if (key.count === null || details.items.length !== key.count) return false;
+    if (!details.sortContainer || details.items.some(item => !item.sortNode)) {
+      status('Không xác định được vùng danh sách đi sớm của HANET.', 'error');
+      return false;
+    }
     const signature = JSON.stringify([key, state.direction, details.items.map(item => [item.time,item.name])]);
-    if (signature === lastEarlySignature && state.cardView?.isConnected && state.dialogView?.isConnected) return;
+    const sameUnits = lastEarlyUnits.length === details.items.length && details.items.every((item, index) => item.sortNode === lastEarlyUnits[index]);
+    if (signature === lastEarlySignature && sameUnits && state.cardView?.isConnected && state.dialogView?.isConnected) return true;
     lastEarlySignature = signature;
-    const parent = details.items[0].node.parentElement;
-    rememberStyle(parent, 'display', 'flex'); rememberStyle(parent, 'flex-direction', 'column');
-    Core.sortArrivals(details.items, state.direction).forEach((item, i) => rememberStyle(item.node, 'order', String(i)));
+    lastEarlyUnits = details.items.map(item => item.sortNode);
+    rememberStyle(details.sortContainer, 'display', 'flex'); rememberStyle(details.sortContainer, 'flex-direction', 'column');
+    Core.sortArrivals(details.items, state.direction).forEach((item, i) => rememberStyle(item.sortNode, 'order', String(i)));
     if (!state.dialogView?.isConnected || !details.dialog.contains(state.dialogView)) {
       state.dialogView?.remove(); state.dialogView = document.createElement('div');
       const shadow = state.dialogView.attachShadow({mode:'open'});
@@ -285,6 +296,7 @@
     drawEarlyCard();
     if (!state.busy) status(`Đã sắp xếp đủ ${state.early.rows.length} FaceID đi sớm ngày ${key.date}.`, 'ok');
     if (state.ui) state.ui.foot.textContent = `Dữ liệu lúc ${vnTime(state.early.collectedAt)}. Bấm cập nhật khi cần đọc lại danh sách.`;
+    return true;
   }
   async function refreshEarly() {
     if (state.busy) return;
@@ -306,8 +318,8 @@
         if (now.date !== key.date || now.count !== key.count) throw new Error('Ngày hoặc dữ liệu đã thay đổi. Hãy cập nhật lại.');
         const details = DOM.readEarlyDialog(document);
         if (details && details.items.length === key.count) {
-          lastEarlySignature = ''; updateEarly();
-          if (!state.early) throw new Error('Chưa đọc đủ danh sách đi sớm.');
+          lastEarlySignature = ''; lastEarlyUnits = [];
+          if (!updateEarly() || !state.early) throw new Error('Chưa thể áp dụng thứ tự cho danh sách đi sớm.');
           status(`Đã sắp xếp đủ ${key.count} FaceID; ${state.direction === 'desc' ? 'giờ đến mới nhất' : 'giờ đến sớm nhất'} đứng trước.`, 'ok');
           return;
         }

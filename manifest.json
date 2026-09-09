@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Hannet_mttq_tool_cuongnnb",
-  "version": "0.1.0",
-  "description": "địa điểm: 997606",
+  "name": "MTTQ · HANET hỗ trợ điểm danh",
+  "version": "0.2.0",
+  "description": "Xuất bảng vào ra theo phòng ban và sắp xếp FaceID đi sớm theo giờ đến giảm dần tại địa điểm 997606.",
   "content_scripts": [{
     "matches": ["https://connect.hanet.ai/*"],
     "js": ["core.js", "dom.js", "content.js"],

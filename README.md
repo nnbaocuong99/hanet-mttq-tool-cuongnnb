@@ -74,6 +74,10 @@
     ```javascript
     node --test tests/core.test.cjs
     ```
-### ***3. v0.1.0 | Bản thử nghiệm đầu tiên cùng 2 tính năng chính của tiện ích***
+### ***3. Các phiên bản, cập nhật thay đổi***
+#### v0.1.0 | Bản thử nghiệm đầu tiên cùng 2 tính năng chính của tiện ích - [Link](https://github.com/nnbaocuong99/hanet-mttq-tool-cuongnnb/releases/tag/0.1.0)
 - *Hỗ trợ xuất file dữ liệu điểm danh dưới dạng file Excel theo từng ban: đọc đủ các trang, giữ nguyên cặp giờ vào/ra theo ngày trong bảng.*
 - *Sắp xếp FaceID đi sớm: giờ đến mới nhất đứng đầu, có thể đổi chiều sắp xếp.*
+
+#### v0.1.1 - [Link](https://github.com/nnbaocuong99/hanet-mttq-tool-cuongnnb/releases/tag/0.1.1)
+- *Sửa lại tính năng Sắp xếp FaceID*
